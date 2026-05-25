@@ -264,11 +264,11 @@ function iconFor(item: DocTreeItem): unknown {
         :block-node="true"
         :draggable="!props.readonly"
         :show-icon="false"
+        :show-line="true"
         @select="onSelect"
         @drop="onDrop"
         @rightClick="onRightClick"
       >
-      <template #switcherIcon><DownOutlined /></template>
       <template #title="item">
         <a-dropdown :trigger="['contextmenu']">
           <span class="node-title">
@@ -421,5 +421,15 @@ function iconFor(item: DocTreeItem): unknown {
   padding: 0 4px;
   height: 22px;
   font-size: 0.85em;
+}
+/* 虚线连接：show-line 实线改虚线 */
+.tree :deep(.ant-tree-indent-unit::before) {
+  border-inline-end-style: dashed !important;
+}
+.tree :deep(.ant-tree-switcher-leaf-line::before) {
+  border-inline-end-style: dashed !important;
+}
+.tree :deep(.ant-tree-switcher-leaf-line::after) {
+  border-bottom-style: dashed !important;
 }
 </style>
