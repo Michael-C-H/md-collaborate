@@ -1,0 +1,39 @@
+# Docker 构建上下文忽略清单
+# by AI.Coding
+#
+# 关键作用：把宿主机的 node_modules / dist 这类目录排掉，避免 pnpm 在
+# 镜像里生成的 node_modules 被 COPY 阶段覆盖（特别是 Windows 的 pnpm
+# 软链接，跨平台传到容器里会报 "cannot copy to non-directory"）。
+
+# 依赖与构建产物（每个 workspace 都可能有）
+**/node_modules
+**/dist
+**/.cache
+**/.turbo
+**/.next
+**/.nuxt
+**/.output
+
+# 本地环境与日志
+.env
+.env.*
+*.log
+**/*.log
+
+# 测试与覆盖率
+**/coverage
+**/.vitest
+
+# IDE / 系统垃圾
+.idea
+.vscode
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# pnpm 缓存
+.pnpm-store

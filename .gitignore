@@ -1,0 +1,28 @@
+# 依赖
+node_modules/
+.pnpm-store/
+
+# 构建产物
+dist/
+build/
+*.tsbuildinfo
+
+# 环境变量与本地配置
+.env
+.env.local
+.env.*.local
+
+# 编辑器 / OS
+.DS_Store
+.vscode/
+.idea/
+*.log
+
+# 上传目录（本地开发可能写入）
+upload/
+
+# 测试
+coverage/
+
+# Vite
+.vite/

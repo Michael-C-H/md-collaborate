@@ -1,0 +1,25 @@
+{
+  "name": "md-collab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "在线多人协作 Markdown 编辑器",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "build:shared": "pnpm --filter @app/shared build",
+    "dev:backend": "pnpm build:shared && pnpm --filter @app/backend start:dev",
+    "dev:frontend": "pnpm build:shared && pnpm --filter @app/frontend dev",
+    "build": "pnpm --filter @app/shared build && pnpm -r --filter \"!@app/shared\" build",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "db:generate": "pnpm --filter @app/backend db:generate",
+    "db:migrate": "pnpm --filter @app/backend db:migrate"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "@types/node": "^20.12.7"
+  },
+  "packageManager": "pnpm@9.4.0"
+}

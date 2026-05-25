@@ -1,0 +1,137 @@
+# ─────────────────────────────────────────────────────────────────
+# md-collab 部署编排
+# by AI.Coding
+#
+# 默认形态：连接已有的外部 MySQL / Redis
+#   docker compose up -d
+#   .env 里 DATABASE_URL / REDIS_HOST 填真实地址
+#
+# 一体化形态：顺带起 MySQL 8 + Redis 7
+#   在 .env 里写一行：COMPOSE_PROFILES=bundled-db
+#   然后照常 docker compose up -d
+#
+# Compose v2 行为：
+#   - profiles 没激活的服务被排除
+#   - depends_on 指向被排除的服务时，依赖会被自动忽略
+#   所以 app / migrate 写着 depends_on mysql/redis 也没关系，profile 未开时静默跳过。
+# ─────────────────────────────────────────────────────────────────
+
+services:
+  # ── 一体化部署才启用的内置 MySQL ───────────────────────────────
+  mysql:
+    image: mysql:8.0
+    profiles: [mysql]
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_0900_ai_ci
+      --default-time-zone=+08:00
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # ── 一体化部署才启用的内置 Redis ───────────────────────────────
+  redis:
+    image: redis:7-alpine
+    profiles: [redis]
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    command: >
+      sh -c '
+        if [ -n "$$REDIS_PASSWORD" ]; then
+          exec redis-server --requirepass "$$REDIS_PASSWORD";
+        else
+          exec redis-server;
+        fi
+      '
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # ── 一次性迁移：每次 up 都跑一遍；无新迁移则 No changes 也 exit 0 ──
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    depends_on:
+      # required: false → 当 mysql profile 没激活、服务不存在时，compose 不会报错
+      mysql:
+        condition: service_healthy
+        required: false
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    command: ["node", "dist/database/migrate.js"]
+    restart: "no"
+
+  # ── NestJS 后端：HTTP + WebSocket ─────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      # mysql / redis 用 required: false，profile 未激活时这两条被自动忽略
+      mysql:
+        condition: service_healthy
+        required: false
+      redis:
+        condition: service_healthy
+        required: false
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      APP_PORT: 3000
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      SESSION_PASSWORD: ${SESSION_PASSWORD}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      SSO_BASE_URL: ${SSO_BASE_URL}
+      SSO_CLIENT_ID: ${SSO_CLIENT_ID}
+      SSO_CLIENT_SECRET: ${SSO_CLIENT_SECRET}
+      SSO_LOGOUT_REDIRECT: ${SSO_LOGOUT_REDIRECT}
+      UPLOAD_DIR: /data/upload
+      MAX_IMAGE_SIZE_MB: ${MAX_IMAGE_SIZE_MB}
+      MAX_IMPORT_MD_SIZE_MB: ${MAX_IMPORT_MD_SIZE_MB}
+      MAX_IMPORT_ZIP_SIZE_MB: ${MAX_IMPORT_ZIP_SIZE_MB}
+      MAX_EDITORS_PER_DOC: ${MAX_EDITORS_PER_DOC}
+      TOTAL_CONCURRENCY_LIMIT: ${TOTAL_CONCURRENCY_LIMIT}
+      TRASH_RETENTION_DAYS: ${TRASH_RETENTION_DAYS}
+      LOG_LEVEL: ${LOG_LEVEL}
+    volumes:
+      - upload-data:/data/upload
+    expose:
+      - "3000"
+
+  # ── Nginx：反代静态前端 + /api + /ws ──────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "${HTTP_PORT:-80}:80"
+
+volumes:
+  upload-data:
+  mysql-data:
+  redis-data:

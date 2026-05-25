@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm build:shared)",
+      "Bash(npx tsc *)",
+      "Bash(npx vue-tsc *)",
+      "Bash(pnpm test *)",
+      "Bash(npx vitest *)",
+      "Bash(xargs ls -lt --time-style=long-iso)"
+    ]
+  }
+}
