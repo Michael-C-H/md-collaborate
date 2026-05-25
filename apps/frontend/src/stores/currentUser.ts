@@ -3,7 +3,7 @@
  * by AI.Coding
  *
  * - load()：调用 /api/auth/me；成功写入 user，失败置为 null；loaded 标记为 true
- * - logout()：调用 /api/auth/logout，清空 user，返回三方跳转地址
+ * - logout()：调用 /api/auth/logout，清空 user，返回跳转地址（SSO 用户）或 null（LOCAL 用户）
  */
 import { defineStore } from 'pinia'
 import { ref } from 'vue'

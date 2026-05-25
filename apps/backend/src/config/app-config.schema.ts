@@ -37,6 +37,10 @@ export const AppConfigSchema = z.object({
   SSO_CLIENT_SECRET: z.string().min(1),
   SSO_LOGOUT_REDIRECT: z.string().url('SSO_LOGOUT_REDIRECT 必须是合法 URL'),
 
+  // 初始管理员（可选；配置后启动时自动创建）
+  ADMIN_USERNAME: z.string().min(1).optional(),
+  ADMIN_PASSWORD: z.string().min(6).optional(),
+
   // 上传与边界
   UPLOAD_DIR: z.string().min(1, 'UPLOAD_DIR 必填'),
   MAX_IMAGE_SIZE_MB: z.coerce.number().int().positive().default(10),

@@ -234,7 +234,7 @@ export class SnapshotService {
     const rows = await this.db
       .select({ n: knownUsers.displayName })
       .from(knownUsers)
-      .where(eq(knownUsers.userId, userId))
+      .where(eq(knownUsers.id, userId))
       .limit(1)
     return rows[0]?.n ?? `user_${userId}`
   }
@@ -242,9 +242,9 @@ export class SnapshotService {
   private async fetchDisplayNames(userIds: number[]): Promise<Map<number, string>> {
     if (userIds.length === 0) return new Map()
     const rows = await this.db
-      .select({ userId: knownUsers.userId, name: knownUsers.displayName })
+      .select({ userId: knownUsers.id, name: knownUsers.displayName })
       .from(knownUsers)
-      .where(inArray(knownUsers.userId, userIds))
+      .where(inArray(knownUsers.id, userIds))
     return new Map(rows.map((r) => [r.userId, r.name]))
   }
 

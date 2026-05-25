@@ -62,7 +62,7 @@ export class AuditRepo {
         createdAt: operationLog.createdAt,
       })
       .from(operationLog)
-      .leftJoin(knownUsers, eq(operationLog.userId, knownUsers.userId))
+      .leftJoin(knownUsers, eq(operationLog.userId, knownUsers.id))
       .where(whereExpr)
       .orderBy(desc(operationLog.createdAt), desc(operationLog.id))
       .limit(filter.pageSize)

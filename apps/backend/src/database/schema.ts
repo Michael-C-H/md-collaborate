@@ -36,18 +36,24 @@ const longblob = customType<{ data: Buffer; default: false }>({
 })
 
 // ─────────────────────────────────────────────────────────────────
-// known_users — 已登录用户缓存
+// known_users — 用户表（SSO 缓存 + 本地账号）
 // ─────────────────────────────────────────────────────────────────
 export const knownUsers = mysqlTable(
   'known_users',
   {
-    /** 来自 SSO verify 的 userId，全系统通用主键 */
-    userId: bigint('user_id', { mode: 'number' }).primaryKey().notNull(),
-    /** SSO username，唯一 */
+    /** 内部自增主键，全系统通用 */
+    id: bigint('id', { mode: 'number' }).primaryKey().autoincrement(),
+    /** 来自 SSO verify 的外部 userId；仅 SSO 用户有值 */
+    userId: bigint('user_id', { mode: 'number' }),
+    /** 登录来源：SSO / LOCAL */
+    loginType: varchar('login_type', { length: 8 }).notNull().default('SSO'),
+    /** 用户名，SSO 和 LOCAL 共享命名空间，唯一 */
     username: varchar('username', { length: 64 }).notNull().unique('uk_username'),
-    /** SSO displayName，用于头像与展示 */
+    /** 本地登录密码哈希（bcrypt）；仅 LOCAL 用户有值 */
+    passwordHash: varchar('password_hash', { length: 128 }),
+    /** 显示名，用于头像与展示 */
     displayName: varchar('display_name', { length: 128 }).notNull(),
-    /** SSO role；仅 'ADMIN' 触发超级管理员，其他视为普通用户 */
+    /** 角色；仅 'ADMIN' 触发超级管理员，其他视为普通用户 */
     role: varchar('role', { length: 32 }).notNull(),
     firstLoginAt: datetime('first_login_at', { fsp: 3 }).notNull(),
     lastLoginAt: datetime('last_login_at', { fsp: 3 }).notNull(),
@@ -55,6 +61,7 @@ export const knownUsers = mysqlTable(
   (t) => ({
     idxDisplayName: index('idx_display_name').on(t.displayName),
     idxRole: index('idx_role').on(t.role),
+    idxLoginType: index('idx_login_type').on(t.loginType),
   }),
 )
 

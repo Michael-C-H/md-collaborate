@@ -5,7 +5,7 @@
  * 守卫顺序：
  *   1) 公开路由（meta.requiresAuth === false）直接放行
  *   2) URL 上带 ssoToken → 调 /api/auth/sso-login 换会话；成功后去掉参数继续，失败跳登录失败页
- *   3) 已有会话直接放行；无会话跳 /login-error?code=NO_SESSION
+ *   3) 已有会话直接放行；无会话跳 /login
  */
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import type { CurrentUser, SsoLoginErrorData } from '@app/shared'
@@ -30,6 +30,18 @@ const routes: RouteRecordRaw[] = [
     name: 'admin-audit',
     component: () => import('@/views/AuditView.vue'),
     meta: { requiresAuth: true },
+  },
+  {
+    path: '/admin/users',
+    name: 'admin-users',
+    component: () => import('@/views/AdminUsersView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/login',
+    name: 'login',
+    component: () => import('@/views/LoginView.vue'),
+    meta: { requiresAuth: false },
   },
   {
     path: '/login-error',
@@ -75,7 +87,7 @@ router.beforeEach(async (to) => {
     await store.load()
   }
   if (!store.user) {
-    return { name: 'login-error', query: { code: 'NO_SESSION' } }
+    return { name: 'login' }
   }
   return true
 })

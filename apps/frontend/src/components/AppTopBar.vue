@@ -3,24 +3,29 @@
  * 顶栏：左侧 Logo，右侧入口（回收站 / 日志）+ 主题切换 + 当前用户 + 登出
  * by AI.Coding
  */
-import { computed } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { message } from 'ant-design-vue'
 import {
   BulbFilled,
   BulbOutlined,
   DeleteOutlined,
   DesktopOutlined,
   FileSearchOutlined,
+  KeyOutlined,
   LogoutOutlined,
+  TeamOutlined,
 } from '@ant-design/icons-vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { useCurrentUserStore } from '@/stores/currentUser'
 import { useThemeStore, type ThemeMode } from '@/stores/theme'
+import { authApi } from '@/api/auth.api'
 
 const store = useCurrentUserStore()
 const themeStore = useThemeStore()
 const router = useRouter()
 const isAdmin = computed(() => store.user?.role === 'ADMIN')
+const isLocalUser = computed(() => store.user?.loginType === 'LOCAL')
 
 const themeIcon = computed(() => {
   if (themeStore.mode === 'dark') return BulbOutlined
@@ -37,7 +42,7 @@ async function onLogout(): Promise<void> {
   if (redirect) {
     window.location.href = redirect
   } else {
-    window.location.href = '/'
+    void router.push({ name: 'login' })
   }
 }
 
@@ -46,6 +51,50 @@ function goTrash(): void {
 }
 function goAudit(): void {
   void router.push({ name: 'admin-audit' })
+}
+function goUsers(): void {
+  void router.push({ name: 'admin-users' })
+}
+
+// ── 修改密码 ──
+const showPwdModal = ref(false)
+const pwdForm = reactive({ oldPassword: '', newPassword: '', confirmPassword: '' })
+const pwdLoading = ref(false)
+
+function openChangePassword(): void {
+  pwdForm.oldPassword = ''
+  pwdForm.newPassword = ''
+  pwdForm.confirmPassword = ''
+  showPwdModal.value = true
+}
+
+async function onSubmitPassword(): Promise<void> {
+  if (!pwdForm.oldPassword || !pwdForm.newPassword) {
+    message.warning('请填写当前密码和新密码')
+    return
+  }
+  if (pwdForm.newPassword.length < 6) {
+    message.warning('新密码至少 6 个字符')
+    return
+  }
+  if (pwdForm.newPassword !== pwdForm.confirmPassword) {
+    message.warning('两次输入的新密码不一致')
+    return
+  }
+  pwdLoading.value = true
+  try {
+    const res = await authApi.changePassword(pwdForm.oldPassword, pwdForm.newPassword)
+    if (res.code === 0) {
+      message.success('密码修改成功')
+      showPwdModal.value = false
+    } else {
+      message.error(res.message || '修改失败')
+    }
+  } catch {
+    message.error('修改失败')
+  } finally {
+    pwdLoading.value = false
+  }
 }
 </script>
 
@@ -60,6 +109,10 @@ function goAudit(): void {
       <a-button v-if="isAdmin" @click="goAudit">
         <template #icon><FileSearchOutlined /></template>
         操作日志
+      </a-button>
+      <a-button v-if="isAdmin" @click="goUsers">
+        <template #icon><TeamOutlined /></template>
+        用户管理
       </a-button>
 
       <a-dropdown :trigger="['click']">
@@ -91,13 +144,42 @@ function goAudit(): void {
         </template>
       </a-dropdown>
 
-      <UserAvatar :user-id="store.user.userId" :name="store.user.displayName" :size="32" />
-      <span class="name">{{ store.user.displayName }}</span>
-      <a-button type="text" @click="onLogout">
-        <template #icon><LogoutOutlined /></template>
-        登出
-      </a-button>
+      <a-dropdown :trigger="['click']">
+        <UserAvatar :user-id="store.user.userId" :name="store.user.displayName" :size="32" class="cursor-pointer" />
+        <template #overlay>
+          <a-menu>
+            <a-menu-item v-if="isLocalUser" @click="openChangePassword">
+              <KeyOutlined /> 修改密码
+            </a-menu-item>
+            <a-menu-item @click="onLogout">
+              <LogoutOutlined /> 登出
+            </a-menu-item>
+          </a-menu>
+        </template>
+      </a-dropdown>
     </a-space>
+
+    <!-- 修改密码弹窗 -->
+    <a-modal
+      v-model:open="showPwdModal"
+      title="修改密码"
+      :confirm-loading="pwdLoading"
+      ok-text="确认修改"
+      cancel-text="取消"
+      @ok="onSubmitPassword"
+    >
+      <a-form layout="vertical">
+        <a-form-item label="当前密码">
+          <a-input-password v-model:value="pwdForm.oldPassword" placeholder="请输入当前密码" />
+        </a-form-item>
+        <a-form-item label="新密码">
+          <a-input-password v-model:value="pwdForm.newPassword" placeholder="至少 6 个字符" />
+        </a-form-item>
+        <a-form-item label="确认新密码">
+          <a-input-password v-model:value="pwdForm.confirmPassword" placeholder="再次输入新密码" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </header>
 </template>
 
@@ -117,8 +199,7 @@ function goAudit(): void {
   font-size: 1.1rem;
   color: var(--text-primary);
 }
-.name {
-  font-size: 0.9rem;
-  color: var(--text-primary);
+.cursor-pointer {
+  cursor: pointer;
 }
 </style>

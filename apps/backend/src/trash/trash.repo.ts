@@ -66,7 +66,7 @@ export class TrashRepo {
         deletedById: nodes.deletedBy,
       })
       .from(nodes)
-      .leftJoin(knownUsers, eq(nodes.creatorId, knownUsers.userId))
+      .leftJoin(knownUsers, eq(nodes.creatorId, knownUsers.id))
       .leftJoin(parentNode, eq(nodes.parentId, parentNode.id))
       .where(and(...conds))
       .orderBy(sql`${nodes.deletedAt} DESC`)
@@ -82,9 +82,9 @@ export class TrashRepo {
     let deleterMap = new Map<number, string>()
     if (deleterIds.length > 0) {
       const ds = await this.db
-        .select({ id: knownUsers.userId, n: knownUsers.displayName })
+        .select({ id: knownUsers.id, n: knownUsers.displayName })
         .from(knownUsers)
-        .where(inArray(knownUsers.userId, deleterIds))
+        .where(inArray(knownUsers.id, deleterIds))
       deleterMap = new Map(ds.map((r) => [r.id, r.n]))
     }
 

@@ -69,14 +69,18 @@ export class SsoTokenMiddleware implements NestMiddleware {
       const ssoUser = await this.verifyClient.verify(ssoToken)
 
       // 写入/更新 known_users（用户本地镜像，用于后续分享检索）
-      await this.knownUserService.upsert(ssoUser)
+      await this.knownUserService.upsertSso(ssoUser)
+
+      // 查出内部 id（upsert 后 user_id 可能与 id 不同）
+      const dbUser = await this.knownUserService.findByUsername(ssoUser.username)
 
       // 写入本地会话
       session.user = {
-        userId: ssoUser.userId,
+        userId: dbUser.userId,
         username: ssoUser.username,
         displayName: ssoUser.displayName,
         role: ssoUser.role === 'ADMIN' ? 'ADMIN' : 'USER',
+        loginType: 'SSO',
       }
       await session.save()
 

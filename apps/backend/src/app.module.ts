@@ -16,6 +16,7 @@
 import { Module } from '@nestjs/common'
 import { ScheduleModule } from '@nestjs/schedule'
 import { LoggerModule } from 'nestjs-pino'
+import { AdminModule } from './admin/admin.module'
 import { AuditModule } from './audit/audit.module'
 import { AuthModule } from './auth/auth.module'
 import { CollabModule } from './collab/collab.module'
@@ -51,6 +52,8 @@ import { HealthModule } from './common/health/health.module'
               'req.body.clientSecret',
               'req.body.ssoToken',
               'req.body.password',
+              'req.body.oldPassword',
+              'req.body.newPassword',
             ],
             censor: '[REDACTED]',
           },
@@ -68,6 +71,7 @@ import { HealthModule } from './common/health/health.module'
     SnapshotModule,
     ImExportModule,
     AuditModule,
+    AdminModule,
     TrashModule,
     HealthModule,
   ],

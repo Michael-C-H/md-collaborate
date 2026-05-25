@@ -3,8 +3,9 @@
  * by AI.Coding
  *
  * GET  /api/auth/me         当前登录用户
+ * POST /api/auth/login      本地用户名密码登录
  * POST /api/auth/sso-login  前端将 URL 上的 ssoToken 提交给后端走 SSO 登录
- * POST /api/auth/logout     销毁本地会话，返回三方首页地址
+ * POST /api/auth/logout     销毁本地会话，返回跳转地址
  */
 import {
   Body,
@@ -17,8 +18,12 @@ import {
 import type { Request } from 'express'
 import type { IronSession } from 'iron-session'
 import {
+  ChangePasswordRequestSchema,
+  LoginRequestSchema,
   SsoLoginRequestSchema,
+  type ChangePasswordRequest,
   type CurrentUser,
+  type LoginRequest,
   type SsoLoginRequest,
 } from '@app/shared'
 import { fail, ok } from '../common/api-result'
@@ -45,6 +50,23 @@ export class AuthController {
     return ok(user)
   }
 
+  /** 本地登录：用户名 + 密码 */
+  @Post('login')
+  @SkipAuth()
+  @UsePipes(new ZodValidationPipe(LoginRequestSchema))
+  async login(
+    @Body() body: LoginRequest,
+    @Req() req: Request & { session: IronSession<SessionData> },
+  ) {
+    const result = await this.authService.login(body.username, body.password)
+    if (!result) {
+      return fail(401, '用户名或密码错误')
+    }
+    req.session.user = result
+    await req.session.save()
+    return ok(result)
+  }
+
   /**
    * SSO 登录：前端检测到 URL 上的 ssoToken 后调用本接口。
    *   成功 → 写本地 session、upsert known_users，返回 CurrentUser
@@ -62,13 +84,17 @@ export class AuthController {
   ) {
     try {
       const ssoUser = await this.verifyClient.verify(body.ssoToken)
-      await this.knownUserService.upsert(ssoUser)
+      await this.knownUserService.upsertSso(ssoUser)
+
+      // 查出内部 id
+      const dbUser = await this.knownUserService.findByUsername(ssoUser.username)
 
       const payload: CurrentUser = {
-        userId: ssoUser.userId,
+        userId: dbUser.userId,
         username: ssoUser.username,
         displayName: ssoUser.displayName,
         role: ssoUser.role === 'ADMIN' ? 'ADMIN' : 'USER',
+        loginType: 'SSO',
       }
       req.session.user = payload
       await req.session.save()
@@ -82,14 +108,37 @@ export class AuthController {
     }
   }
 
+  /** 用户自助修改密码（仅 LOCAL 用户） */
+  @Post('change-password')
+  @UsePipes(new ZodValidationPipe(ChangePasswordRequestSchema))
+  async changePassword(
+    @Body() body: ChangePasswordRequest,
+    @CurrentUserDecorator() user: CurrentUserPayload,
+  ) {
+    const result = await this.authService.changePassword(
+      user.userId,
+      body.oldPassword,
+      body.newPassword,
+    )
+    if (result === null) {
+      return fail(400, 'SSO 用户不支持修改密码')
+    }
+    if (!result) {
+      return fail(400, '当前密码错误')
+    }
+    return ok(null)
+  }
+
   /** 登出：销毁本地会话 */
   @Post('logout')
   @SkipAuth()
   logout(@Req() req: Request & { session: IronSession<SessionData> }) {
+    const loginType = req.session?.user?.loginType
     if (req.session?.user) {
-      // iron-session 的 destroy() 同步清除内存数据 + 写过期的 Set-Cookie
       req.session.destroy()
     }
-    return ok({ redirectUrl: this.authService.getLogoutRedirectUrl() })
+    // SSO 用户跳 SSO 首页；LOCAL 用户返回 null（前端自行跳 /login）
+    const redirectUrl = loginType === 'SSO' ? this.authService.getLogoutRedirectUrl() : null
+    return ok({ redirectUrl })
   }
 }

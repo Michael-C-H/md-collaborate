@@ -8,6 +8,13 @@
       "when": 1778667876522,
       "tag": "0000_small_rhodey",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1779692118039,
+      "tag": "0001_flimsy_juggernaut",
+      "breakpoints": true
     }
   ]
 }

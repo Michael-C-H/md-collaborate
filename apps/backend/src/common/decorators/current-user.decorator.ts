@@ -14,6 +14,7 @@ export interface CurrentUserPayload {
   username: string
   displayName: string
   role: 'ADMIN' | 'USER'
+  loginType: 'SSO' | 'LOCAL'
 }
 
 /** 从请求中提取当前登录用户；缺失时抛 AuthException（正常情况下守卫已拦截） */

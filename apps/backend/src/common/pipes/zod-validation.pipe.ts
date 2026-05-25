@@ -17,7 +17,11 @@ import { BadRequestException } from '../exceptions/app.exception'
 export class ZodValidationPipe<T> implements PipeTransform<unknown, T> {
   constructor(private readonly schema: ZodSchema<T>) {}
 
-  transform(value: unknown, _metadata: ArgumentMetadata): T {
+  transform(value: unknown, metadata: ArgumentMetadata): T {
+    // 仅校验 body / query / param，跳过自定义装饰器参数
+    if (metadata.type !== 'body' && metadata.type !== 'query' && metadata.type !== 'param') {
+      return value as T
+    }
     const result = this.schema.safeParse(value)
     if (result.success) {
       return result.data
