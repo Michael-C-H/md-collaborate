@@ -73,4 +73,47 @@ export class PermissionRepo {
     // mysql2 ResultSetHeader.affectedRows
     return (result as unknown as { affectedRows?: number }[])[0]?.affectedRows ?? 0
   }
+
+  /** 查询用户在多个节点中的最高角色（祖先继承用） */
+  async findMaxRoleByNodesAndUser(
+    nodeIds: number[],
+    userId: number,
+  ): Promise<string | null> {
+    if (nodeIds.length === 0) return null
+    const rows = await this.db
+      .select({ role: permissions.role })
+      .from(permissions)
+      .where(and(inArray(permissions.nodeId, nodeIds), eq(permissions.userId, userId)))
+    if (rows.length === 0) return null
+    // 取最高角色：MANAGE > WRITE > READ
+    const order: Record<string, number> = { READ: 1, WRITE: 2, MANAGE: 3 }
+    let best: string | null = null
+    let bestLevel = 0
+    for (const r of rows) {
+      const level = order[r.role] ?? 0
+      if (level > bestLevel) {
+        bestLevel = level
+        best = r.role
+      }
+    }
+    return best
+  }
+
+  /** 批量 upsert 权限 */
+  async upsertMany(
+    rows: Array<{ nodeId: number; userId: number; role: 'READ' | 'WRITE' | 'MANAGE'; createdBy: number }>,
+  ): Promise<void> {
+    for (const r of rows) {
+      await this.upsert(r.nodeId, r.userId, r.role, r.createdBy)
+    }
+  }
+
+  /** 批量删除多个节点的某用户权限 */
+  async deleteByNodesAndUser(nodeIds: number[], userId: number): Promise<number> {
+    if (nodeIds.length === 0) return 0
+    const result = await this.db
+      .delete(permissions)
+      .where(and(inArray(permissions.nodeId, nodeIds), eq(permissions.userId, userId)))
+    return (result as unknown as { affectedRows?: number }[])[0]?.affectedRows ?? 0
+  }
 }

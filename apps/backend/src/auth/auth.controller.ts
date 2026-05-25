@@ -82,6 +82,9 @@ export class AuthController {
     @Body() body: SsoLoginRequest,
     @Req() req: Request & { session: IronSession<SessionData> },
   ) {
+    if (!this.verifyClient.isConfigured()) {
+      return fail(400, 'SSO 未配置，请使用本地登录')
+    }
     try {
       const ssoUser = await this.verifyClient.verify(body.ssoToken)
       await this.knownUserService.upsertSso(ssoUser)

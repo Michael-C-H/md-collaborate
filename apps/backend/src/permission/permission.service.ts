@@ -10,7 +10,7 @@
  *   - 节点 creator 查询通过 drizzle 直查 nodes 表（不依赖 NodeModule，避免循环依赖）
  */
 import { Inject, Injectable } from '@nestjs/common'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull, like } from 'drizzle-orm'
 import type { PermissionRole, PermissionVO } from '@app/shared'
 import { AuditService } from '../audit/audit.service'
 import {
@@ -63,8 +63,14 @@ export class PermissionService {
     }
     if (creator === userId) return true
     const row = await this.repo.findByNodeAndUser(nodeId, userId)
-    if (!row) return false
-    return meets(row.role as PermissionRole, minRole)
+    if (row) return meets(row.role as PermissionRole, minRole)
+
+    // 直接权限未命中 → 向上查找祖先权限（继承）
+    const ancestorRole = await this.getInheritedRole(userId, nodeId)
+    if (!ancestorRole) return false
+    // MANAGE 不继承：父文件夹的权限管理权不覆盖子文档
+    const effective = ancestorRole === 'MANAGE' ? 'WRITE' : ancestorRole
+    return meets(effective as PermissionRole, minRole)
   }
 
   /** 列出节点的协作者（聚合 known_users 的 displayName / username） */
@@ -107,12 +113,21 @@ export class PermissionService {
       throw new NotFoundException('被授权用户尚未访问本系统，无法添加')
     }
     await this.repo.upsert(nodeId, targetUserId, role, currentUserId)
+
+    // 同步到所有子孙节点
+    const descIds = await this.fetchDescendantIds(nodeId)
+    if (descIds.length > 0) {
+      await this.repo.upsertMany(
+        descIds.map((id) => ({ nodeId: id, userId: targetUserId, role, createdBy: currentUserId })),
+      )
+    }
+
     this.audit.log({
       userId: currentUserId,
       action: 'PERMISSION_GRANT',
       targetType: 'NODE',
       targetId: nodeId,
-      detail: { targetUserId, targetUsername: target.username, role },
+      detail: { targetUserId, targetUsername: target.username, role, propagatedTo: descIds.length },
     })
     return {
       userId: targetUserId,
@@ -135,12 +150,19 @@ export class PermissionService {
     if (affected === 0) {
       throw new NotFoundException('该用户没有节点权限')
     }
+
+    // 级联删除子孙节点的权限
+    const descIds = await this.fetchDescendantIds(nodeId)
+    if (descIds.length > 0) {
+      await this.repo.deleteByNodesAndUser(descIds, targetUserId)
+    }
+
     this.audit.log({
       userId: currentUserId,
       action: 'PERMISSION_REVOKE',
       targetType: 'NODE',
       targetId: nodeId,
-      detail: { targetUserId },
+      detail: { targetUserId, cascadedTo: descIds.length },
     })
   }
 
@@ -155,6 +177,47 @@ export class PermissionService {
    */
   async grantInitialManage(nodeId: number, creatorId: number): Promise<void> {
     await this.repo.upsert(nodeId, creatorId, 'MANAGE', creatorId)
+  }
+
+  /** 内部：通过 path 查询祖先权限，返回最高角色 */
+  private async getInheritedRole(userId: number, nodeId: number): Promise<string | null> {
+    const rows = await this.db
+      .select({ path: nodes.path })
+      .from(nodes)
+      .where(and(eq(nodes.id, nodeId), isNull(nodes.deletedAt)))
+      .limit(1)
+    const nodePath = rows[0]?.path
+    if (!nodePath) return null
+    // 解析祖先 ID："/3/9/12" → [3, 9, 12]，排除自身
+    const ancestorIds = nodePath
+      .split('/')
+      .filter(Boolean)
+      .map(Number)
+      .filter((id) => id !== nodeId)
+    if (ancestorIds.length === 0) return null
+    return this.repo.findMaxRoleByNodesAndUser(ancestorIds, userId)
+  }
+
+  /** 内部：查节点 path，不存在返回 null */
+  private async fetchNodePath(nodeId: number): Promise<string | null> {
+    const rows = await this.db
+      .select({ path: nodes.path })
+      .from(nodes)
+      .where(and(eq(nodes.id, nodeId), isNull(nodes.deletedAt)))
+      .limit(1)
+    return rows[0]?.path ?? null
+  }
+
+  /** 内部：查节点 path 前缀下的所有子孙节点 ID（不含自身） */
+  private async fetchDescendantIds(nodeId: number): Promise<number[]> {
+    const nodePath = await this.fetchNodePath(nodeId)
+    if (!nodePath) return []
+    // nodePath 形如 "/3/9"，子孙 path 为 "/3/9/12"、"/3/9/12/15" 等
+    const rows = await this.db
+      .select({ id: nodes.id })
+      .from(nodes)
+      .where(and(like(nodes.path, `${nodePath}/%`), isNull(nodes.deletedAt)))
+    return rows.map((r) => r.id)
   }
 
   /** 内部：用 drizzle 直查节点 creator_id，节点不存在抛 NotFound */

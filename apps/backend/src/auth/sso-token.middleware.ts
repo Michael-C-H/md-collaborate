@@ -58,9 +58,10 @@ export class SsoTokenMiddleware implements NestMiddleware {
     )
     ;(req as Request & { session: IronSession<SessionData> }).session = session
 
-    // 没有 ssoToken → 不处理登录，直接放行
+    // 没有 ssoToken 或 SSO 未配置 → 不处理登录，直接放行
+    const ssoBaseUrl = this.config.get('SSO_BASE_URL', { infer: true })
     const ssoToken = typeof req.query.ssoToken === 'string' ? req.query.ssoToken : undefined
-    if (!ssoToken) {
+    if (!ssoToken || !ssoBaseUrl) {
       return next()
     }
 

@@ -31,11 +31,11 @@ export const AppConfigSchema = z.object({
     .default('false')
     .transform((v) => v === 'true' || v === '1'),
 
-  // SSO
-  SSO_BASE_URL: z.string().url('SSO_BASE_URL 必须是合法 URL'),
-  SSO_CLIENT_ID: z.string().min(1),
-  SSO_CLIENT_SECRET: z.string().min(1),
-  SSO_LOGOUT_REDIRECT: z.string().url('SSO_LOGOUT_REDIRECT 必须是合法 URL'),
+  // SSO（可选；未配置时 SSO 登录不可用，仅本地登录）
+  SSO_BASE_URL: z.string().url('SSO_BASE_URL 必须是合法 URL').optional().default(''),
+  SSO_CLIENT_ID: z.string().optional().default(''),
+  SSO_CLIENT_SECRET: z.string().optional().default(''),
+  SSO_LOGOUT_REDIRECT: z.string().url('SSO_LOGOUT_REDIRECT 必须是合法 URL').optional().default(''),
 
   // 初始管理员（可选；配置后启动时自动创建）
   ADMIN_USERNAME: z.string().min(1).optional(),

@@ -51,6 +51,11 @@ export class SsoVerifyClient {
     this.clientSecret = config.get('SSO_CLIENT_SECRET', { infer: true })
   }
 
+  /** SSO 是否已配置（baseUrl 非空） */
+  isConfigured(): boolean {
+    return !!this.baseUrl
+  }
+
   /**
    * 校验 ssoToken；硬超时 5 秒。
    * 成功 → 返回 SsoUser；失败 → 抛 SsoVerifyException。
